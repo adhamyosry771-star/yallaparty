@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Inter:wght@400;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cairo", "Inter", system-ui, sans-serif;
+  
+  --color-brand-orange: #FF6321;
+  --color-brand-purple: #8B5CF6;
+  --color-brand-teal: #14B8A6;
+  
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+}
+
+@layer base {
+  html, body {
+    @apply bg-slate-950 text-slate-50 font-sans antialiased overflow-x-hidden;
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+  }
+
+  *, *::before, *::after, input, button, select, textarea {
+    font-variant-numeric: lining-nums !important;
+    font-feature-settings: "lnum" 1 !important;
+  }
+}
+
+.glass {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+}
+
+.glass-dark {
+  @apply bg-black/40 backdrop-blur-2xl border border-white/5;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
