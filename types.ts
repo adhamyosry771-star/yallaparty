@@ -31,6 +31,9 @@ export interface Gift {
   price: number;
   icon: string;
   animation?: string;
+  tab?: string;
+  luckyRate?: number;
+  luckyMultipliers?: number[];
 }
 
 export interface ChatMessage {

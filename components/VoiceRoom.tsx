@@ -86,6 +86,63 @@ const SafeImage: React.FC<{ src: string; className?: string; alt?: string; fallb
   );
 };
 
+interface FlyingGiftItemData {
+  id: string;
+  icon: string;
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  recipientId: string;
+}
+
+const FlyingGiftItem: React.FC<{
+  item: FlyingGiftItemData;
+  onComplete: () => void;
+}> = ({ item, onComplete }) => {
+  const [animStage, setAnimStage] = useState<'start' | 'flying' | 'absorbed'>('start');
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setAnimStage('flying'), 30);
+    const t2 = setTimeout(() => setAnimStage('absorbed'), 750);
+    const t3 = setTimeout(() => onComplete(), 980);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, []);
+
+  const currentPos = animStage === 'start'
+    ? { x: item.startX, y: item.startY, scale: 0.35, opacity: 0 }
+    : animStage === 'flying'
+      ? { x: item.targetX, y: item.targetY, scale: 1.2, opacity: 1 }
+      : { x: item.targetX, y: item.targetY, scale: 0.05, opacity: 0 };
+
+  return (
+    <div 
+      className="fixed z-[9999] pointer-events-none"
+      style={{
+        left: `${currentPos.x}px`,
+        top: `${currentPos.y}px`,
+        transform: `translate(-50%, -50%) scale(${currentPos.scale})`,
+        opacity: currentPos.opacity,
+        transitionProperty: 'left, top, transform, opacity',
+        transitionDuration: animStage === 'start' ? '0.08s' : animStage === 'flying' ? '0.72s' : '0.22s',
+        transitionTimingFunction: animStage === 'flying' ? 'cubic-bezier(0.25, 0.9, 0.25, 1)' : 'ease-out'
+      }}
+    >
+      <div className="relative flex items-center justify-center">
+        {item.icon.startsWith('http') ? (
+          <img src={item.icon} className="w-12 h-12 object-contain select-none" alt="gift" />
+        ) : (
+          <span className="text-4xl select-none">{item.icon}</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const VoiceRoom: React.FC<VoiceRoomProps> = ({ 
   room: initialRoom, onLeave, onKicked, onMinimize, onOpenWallet, onOpenChat,
   micStates, setMicStates, isMicMuted, setIsMicMuted,
@@ -659,12 +716,38 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
   const [showQuantityMenu, setShowQuantityMenu] = useState(false);
   const [isSendingGift, setIsSendingGift] = useState(false);
-  const quantities = [1, 7, 38, 66, 188, 520, 1314, 2628];
+  const quantities = [1, 7, 10, 38, 66, 188, 520, 1314, 2628];
 
   const [designSettings, setDesignSettings] = useState<any>(null);
   const [defaultImages, setDefaultImages] = useState<any>(null);
   const [dynamicEmojis, setDynamicEmojis] = useState<any[]>([]);
   const [dynamicGifts, setDynamicGifts] = useState<Gift[]>([]);
+
+  // Lucky Gifts, Combo & Flying Gift States
+  const [showLuckyWinModal, setShowLuckyWinModal] = useState(false);
+  const [luckyWinInfo, setLuckyWinInfo] = useState<{ coins: number; multiplier: number; giftName: string; quantity?: number } | null>(null);
+  const luckyWinTimeoutRef = useRef<any>(null);
+
+  const [comboActive, setComboActive] = useState(false);
+  const [comboCount, setComboCount] = useState(1);
+  const [comboProgress, setComboProgress] = useState(100);
+  const [comboPressEffect, setComboPressEffect] = useState(false);
+  const comboTimerRef = useRef<any>(null);
+  const lastGiftDataRef = useRef<{
+    gift: Gift;
+    recipientIds: Set<string>;
+    quantity: number;
+  } | null>(null);
+
+  const [flyingGifts, setFlyingGifts] = useState<FlyingGiftItemData[]>([]);
+  const [pulsingMicUid, setPulsingMicUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (comboTimerRef.current) clearInterval(comboTimerRef.current);
+      if (luckyWinTimeoutRef.current) clearTimeout(luckyWinTimeoutRef.current);
+    };
+  }, []);
 
   const [editRoomTitle, setEditRoomTitle] = useState(currentRoom.title);
   const [editRoomDescription, setEditRoomDescription] = useState(currentRoom.description || '');
@@ -1609,6 +1692,11 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         // Preload core design icons
         if (data.giftButtonIcon) { const img = new Image(); img.src = data.giftButtonIcon; }
         if (data.waveRoomIcon) { const img = new Image(); img.src = data.waveRoomIcon; }
+        if (data.comboButtonIcon) { const img = new Image(); img.src = data.comboButtonIcon; }
+        if (data.luckyCircleTier1) { const img = new Image(); img.src = data.luckyCircleTier1; }
+        if (data.luckyCircleTier2) { const img = new Image(); img.src = data.luckyCircleTier2; }
+        if (data.luckyCircleTier3) { const img = new Image(); img.src = data.luckyCircleTier3; }
+        if (data.luckyCircleTier4) { const img = new Image(); img.src = data.luckyCircleTier4; }
       }
     });
     const unsubDefaultProps = onSnapshot(doc(db, "settings", "default_images"), (snap) => {
@@ -1835,36 +1923,123 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     }
   };
 
-  const handleSendGift = async () => {
-    if (sendingGiftRef.current || isSendingGift) return;
-    if (!selectedGiftId) return alert(t("يرجى اختيار هدية أولاً", "Please select a gift first"));
-    if (selectedUserIds.size === 0) return alert(t("يرجى اختيار شخص واحد على الأقل لإرسال الهدية", "Please select at least one recipient to send the gift"));
-    
-    const gift = dynamicGifts.find(g => g.id === selectedGiftId);
-    if (!gift) return;
+  const triggerGiftFlight = (giftIcon: string, recipientId: string) => {
+    let targetX = window.innerWidth / 2;
+    let targetY = window.innerHeight * 0.28;
 
-    const totalRecipients = selectedUserIds.size;
-    const giftValue = gift.price * selectedQuantity;
+    const micEl = document.querySelector(`[data-mic-user-uid="${recipientId}"]`);
+    if (micEl) {
+      const rect = micEl.getBoundingClientRect();
+      targetX = rect.left + rect.width / 2;
+      targetY = rect.top + rect.height / 2;
+    }
+
+    const startX = window.innerWidth / 2;
+    const startY = window.innerHeight - 80;
+
+    const animId = `fly-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    setFlyingGifts(prev => [...prev, {
+      id: animId,
+      icon: giftIcon,
+      startX,
+      startY,
+      targetX,
+      targetY,
+      recipientId
+    }]);
+
+    // When entering avatar, trigger absorption ripple on mic
+    setTimeout(() => {
+      setPulsingMicUid(recipientId);
+      setTimeout(() => setPulsingMicUid(null), 700);
+    }, 750);
+  };
+
+  const startComboCountdown = () => {
+    if (comboTimerRef.current) clearInterval(comboTimerRef.current);
+    const startTime = Date.now();
+    const duration = 5000;
+
+    comboTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remainingPct = Math.max(0, ((duration - elapsed) / duration) * 100);
+      setComboProgress(remainingPct);
+
+      if (elapsed >= duration) {
+        clearInterval(comboTimerRef.current);
+        setComboActive(false);
+        setComboCount(1);
+      }
+    }, 50);
+  };
+
+  const sendGiftCore = async (
+    gift: Gift,
+    recipientUserIds: Set<string>,
+    quantity: number,
+    isComboCall = false
+  ) => {
+    if (sendingGiftRef.current || isSendingGift) return;
+    if (!user) return;
+
+    let finalRecipients = new Set(recipientUserIds);
+    if (finalRecipients.size === 0) {
+      const defaultRecipient = usersOnMics.find(u => u.uid && u.uid !== user?.uid)?.uid 
+        || usersOnMics[0]?.uid 
+        || currentRoom.hostId 
+        || currentRoom.userId 
+        || currentRoom.ownerId 
+        || user.uid;
+      if (defaultRecipient) {
+        finalRecipients = new Set([defaultRecipient]);
+        setSelectedUserIds(finalRecipients);
+      }
+    }
+
+    const totalRecipients = finalRecipients.size;
+    if (totalRecipients === 0) {
+      alert(t("يرجى اختيار شخص واحد على الأقل لإرسال الهدية", "Please select at least one recipient to send the gift"));
+      return;
+    }
+
+    const giftValue = gift.price * quantity;
     const totalCost = giftValue * totalRecipients;
 
     if ((currentUserData?.coins || 0) < totalCost) {
-      return alert(t("رصيدك غير كافٍ لإرسال الهدية", "Your balance is insufficient to send the gift"));
+      if (isComboCall) {
+        setComboActive(false);
+      }
+      alert(t("رصيدك غير كافٍ لإرسال الهدية. رصيدك الحالي: ", "Insufficient balance to send the gift. Your balance: ") + (currentUserData?.coins || 0).toLocaleString('en-US') + " 🪙");
+      return;
     }
 
     sendingGiftRef.current = true;
     setIsSendingGift(true);
+
     try {
-      // 1. تحديث بيانات المرسل (ثروة)
-      const newWealthXP = (currentUserData.wealthXP || 0) + totalCost;
+      // 1. إطلاق حركة طيران الهدية نحو صورة المستخدم على المايك
+      for (const recipientId of Array.from(finalRecipients)) {
+        triggerGiftFlight(gift.icon, recipientId);
+      }
+
+      // 2. تحديث بيانات المرسل (خصم كوينزات + نقاط ثروة)
+      const newWealthXP = (currentUserData?.wealthXP || 0) + totalCost;
       const { level: newWealthLevel } = getWealthLevelInfo(newWealthXP);
-      
-      await updateDoc(doc(db, "users", user!.uid), {
+
+      await updateDoc(doc(db, "users", user.uid), {
         coins: increment(-totalCost),
         wealthXP: increment(totalCost),
         wealthLevel: newWealthLevel
       });
 
-      // 1.5. تحديث ثروة البار للغرفة (20% من قيمة الهدية الكلية)
+      setCurrentUserData((prev: any) => prev ? {
+        ...prev,
+        coins: Math.max(0, (prev.coins || 0) - totalCost),
+        wealthXP: newWealthXP,
+        wealthLevel: newWealthLevel
+      } : prev);
+
+      // 3. تحديث ثروة البار للغرفة (20% من قيمة الهدية)
       const barWealthIncrement = Math.floor(totalCost * 0.2);
       if (barWealthIncrement > 0) {
         try {
@@ -1876,24 +2051,28 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         }
       }
 
-      // 2. تحديث بيانات المستقبلين (جاذبية + ماس)
+      // 4. تحديث بيانات المستقبلين (جاذبية + ماس)
       const diamondValue = Math.floor(giftValue * 0.3);
-      for (const recipientId of Array.from(selectedUserIds)) {
-        const recipientRef = doc(db, "users", recipientId);
-        const recipientSnap = await getDoc(recipientRef);
-        if (recipientSnap.exists()) {
-          const rData = recipientSnap.data();
-          const newCharismaXP = (rData.charismaXP || 0) + giftValue;
-          const { level: newCharismaLevel } = getCharismaLevelInfo(newCharismaXP);
-          
-          await updateDoc(recipientRef, {
-            charismaXP: increment(giftValue),
-            charismaLevel: newCharismaLevel,
-            diamonds: increment(diamondValue)
-          });
+      for (const recipientId of Array.from(finalRecipients)) {
+        try {
+          const recipientRef = doc(db, "users", recipientId);
+          const recipientSnap = await getDoc(recipientRef);
+          if (recipientSnap.exists()) {
+            const rData = recipientSnap.data();
+            const newCharismaXP = (rData.charismaXP || 0) + giftValue;
+            const { level: newCharismaLevel } = getCharismaLevelInfo(newCharismaXP);
+
+            await updateDoc(recipientRef, {
+              charismaXP: increment(giftValue),
+              charismaLevel: newCharismaLevel,
+              diamonds: increment(diamondValue)
+            });
+          }
+        } catch (recipErr) {
+          console.warn("Could not update recipient doc directly, continuing:", recipErr);
         }
 
-        // Also update recipient's mic document in Firestore if they are on a mic!
+        // تحديث كوينزات المايك في فايرستور
         const micIndex = micStates.findIndex(m => m?.user?.uid === recipientId);
         if (micIndex !== -1) {
           try {
@@ -1907,7 +2086,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
       }
 
       setMicStates(prev => prev.map(mic => {
-        if (mic?.user && selectedUserIds.has(mic.user.uid)) {
+        if (mic?.user && finalRecipients.has(mic.user.uid)) {
           return {
             ...mic,
             receivedCoins: (mic.receivedCoins || 0) + giftValue
@@ -1916,33 +2095,33 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         return mic;
       }));
 
-      const recipientNames = Array.from(selectedUserIds).map(uid => {
+      // 5. إشعار الشات وسجل الهدايا
+      const recipientNames = Array.from(recipientUserIds).map(uid => {
         const p = allPresentUsers.find(u => u.uid === uid);
         return p?.displayName || t("مستخدم", "User");
       }).join(language === 'ar' ? '، ' : ', ');
 
       const giftMsg = {
-        userId: user!.uid,
+        userId: user.uid,
         userName: currentUserData?.displayName || t('أنا', 'Me'),
         text: language === 'ar' 
-          ? `أرسل ${selectedQuantity} ${gift.name} إلى ${recipientNames}` 
-          : `sent ${selectedQuantity} ${gift.name} to ${recipientNames}`, 
+          ? `أرسل ${quantity} ${gift.name} إلى ${recipientNames}` 
+          : `sent ${quantity} ${gift.name} to ${recipientNames}`, 
         type: 'gift',
         giftName: gift.name,
         giftAnimation: gift.animation || null,
-        userAvatar: currentUserData?.photoURL || user?.photoURL || '',
+        userAvatar: currentUserData?.photoURL || user.photoURL || '',
         isVerified: !!currentUserData?.isVerified,
         createdAt: serverTimestamp()
       };
-      
       await addDoc(collection(db, "rooms", currentRoom.id, "chat"), giftMsg);
 
       try {
         await addDoc(collection(db, "rooms", currentRoom.id, "giftLogs"), {
-          senderUid: user!.uid,
+          senderUid: user.uid,
           senderName: currentUserData?.displayName || t("مستخدم", "User"),
           senderAvatar: currentUserData?.animatedAvatar || currentUserData?.photoURL || '',
-          senderCustomId: currentUserData?.customId || user!.uid.substring(0, 8),
+          senderCustomId: currentUserData?.customId || user.uid.substring(0, 8),
           senderCustomIdIcon: currentUserData?.customIdIcon || '',
           senderIdOffsetX: currentUserData?.profileIdOffsetX ?? currentUserData?.idOffsetX ?? 28,
           senderIdOffsetY: currentUserData?.profileIdOffsetY ?? currentUserData?.idOffsetY ?? 0.5,
@@ -1959,10 +2138,109 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         setActiveGiftEffect({ url: gift.animation, id: Date.now() });
       }
 
-      setShowGifts(false);
-      setSelectedUserIds(new Set());
-      setSelectedGiftId(null);
-      setSelectedQuantity(1);
+      // 6. مردود هدايا الحظ (Lucky Gifts Reward Engine)
+      const isLucky = (gift as any).tab === 'lucky';
+      if (isLucky) {
+        const baseWinRate = gift.luckyRate ?? 80;
+        const multipliers = (gift.luckyMultipliers && gift.luckyMultipliers.length > 0)
+          ? gift.luckyMultipliers
+          : [0.05, 0.5, 1, 2, 5, 10, 25];
+
+        // كل ما زاد الاكس (الكمية X مثلاً 10X، 38X، 66X...) زادت نسبة الحظ وفرص الأرقام الكبرى بشكل ملحوظ
+        const effectiveX = Math.max(1, quantity);
+        // عند زيادة X، تقترب نسبة الفوز من 99% (مثلاً x10 تعطي قفزة هائلة في نسبة الحظ مقارنة بـ x1)
+        const xBoost = 1 - Math.exp(-0.20 * (effectiveX - 1));
+        const finalWinRate = Math.min(99.6, baseWinRate + (100 - baseWinRate) * xBoost);
+
+        const roll = Math.random() * 100;
+        if (roll <= finalWinRate) {
+          const sorted = [...multipliers].sort((a, b) => a - b);
+          
+          // تعديل أوزان المضاعفات بحيث تقل احتمالية الأرقام الضعيفة وتتضاعف فرص المضاعفات العالية (5x, 10x, 25x, ...)
+          const power = Math.max(0.12, 0.85 - Math.min(0.68, Math.log10(effectiveX) * 0.48));
+          
+          const weights = sorted.map((m) => {
+            let baseW = Math.max(1, Math.round(100 / Math.pow(m >= 1 ? m : 1, power)));
+            
+            // عند ضرب إكس عالي (مثلاً x10 فما فوق)، تقليل نسب المردود الخاسر (أقل من 1x) بشكل كبير
+            if (effectiveX >= 5 && m < 1) {
+              baseW = Math.max(1, Math.round(baseW / (effectiveX * 1.5)));
+            }
+            // زيادة وزن المضاعفات الرابحة والكبيرة
+            if (effectiveX >= 5 && m >= 1) {
+              baseW = Math.round(baseW * (1 + Math.log2(effectiveX) * 0.9));
+            }
+            if (effectiveX >= 10 && m >= 5) {
+              baseW = Math.round(baseW * (1 + Math.log2(effectiveX) * 1.5));
+            }
+            return Math.max(1, baseW);
+          });
+
+          const totalWeight = weights.reduce((a, b) => a + b, 0);
+          let r = Math.random() * totalWeight;
+          let chosenIdx = 0;
+          for (let i = 0; i < weights.length; i++) {
+            if (r <= weights[i]) {
+              chosenIdx = i;
+              break;
+            }
+            r -= weights[i];
+          }
+
+          const chosenMultiplier = sorted[chosenIdx];
+          const wonCoins = Math.floor(gift.price * chosenMultiplier * quantity);
+
+          if (wonCoins > 0) {
+            // إضافة الكوينزات المكتسبة إلى حساب المرسل مباشرة
+            await updateDoc(doc(db, "users", user.uid), {
+              coins: increment(wonCoins)
+            });
+
+            setCurrentUserData((prev: any) => prev ? {
+              ...prev,
+              coins: (prev.coins || 0) + wonCoins
+            } : prev);
+
+            // إظهار الدائرة الاحتفالية في منتصف الشاشة لمدة ثانيتين
+            setLuckyWinInfo({
+              coins: wonCoins,
+              multiplier: chosenMultiplier,
+              giftName: gift.name,
+              quantity: quantity
+            });
+            setShowLuckyWinModal(true);
+            if (luckyWinTimeoutRef.current) clearTimeout(luckyWinTimeoutRef.current);
+            luckyWinTimeoutRef.current = setTimeout(() => {
+              setShowLuckyWinModal(false);
+            }, 2000);
+
+            // رسالة تهنئة في شات الغرفة
+            try {
+              await addDoc(collection(db, "rooms", currentRoom.id, "chat"), {
+                userId: 'system',
+                userName: t('هدايا الحظ', 'Lucky Gifts'),
+                text: `🎉 مبارك! فاز ${currentUserData?.displayName || t('مستخدم', 'User')} بـ ${wonCoins.toLocaleString('en-US')} كوينز (مضاعف x${chosenMultiplier}${quantity > 1 ? ` مع ضرب ${quantity}X` : ''}) من هدية الحظ ${gift.name}!`,
+                type: 'lucky_win',
+                userAvatar: currentUserData?.photoURL || '',
+                createdAt: serverTimestamp()
+              });
+            } catch (chatErr) {
+              console.error("Error announcing lucky win in chat:", chatErr);
+            }
+          }
+        }
+      }
+
+      // 7. تفعيل زر الـ COMBO لتكرار الرمي فوراً
+      lastGiftDataRef.current = { gift, recipientIds: new Set(recipientUserIds), quantity };
+      setComboActive(true);
+      setComboCount(prev => (isComboCall ? prev + 1 : 1));
+      setComboProgress(100);
+      startComboCountdown();
+
+      if (!isComboCall) {
+        setShowGifts(false);
+      }
 
     } catch (err) {
       console.error(err);
@@ -1971,6 +2249,52 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
       sendingGiftRef.current = false;
       setIsSendingGift(false);
     }
+  };
+
+  const handleSendGift = async () => {
+    if (sendingGiftRef.current || isSendingGift) return;
+
+    let targetGiftId = selectedGiftId;
+    if (!targetGiftId && filteredGifts.length > 0) {
+      targetGiftId = filteredGifts[0].id;
+      setSelectedGiftId(targetGiftId);
+    }
+    if (!targetGiftId) {
+      alert(t("يرجى اختيار هدية أولاً", "Please select a gift first"));
+      return;
+    }
+
+    let targetRecipients = new Set(selectedUserIds);
+    if (targetRecipients.size === 0) {
+      const defaultRecipient = usersOnMics.find(u => u.uid && u.uid !== user?.uid)?.uid 
+        || usersOnMics[0]?.uid 
+        || currentRoom.hostId 
+        || currentRoom.userId 
+        || currentRoom.ownerId 
+        || user?.uid;
+      if (defaultRecipient) {
+        targetRecipients = new Set([defaultRecipient]);
+        setSelectedUserIds(targetRecipients);
+      }
+    }
+
+    if (targetRecipients.size === 0) {
+      alert(t("يرجى اختيار شخص واحد على الأقل لإرسال الهدية", "Please select at least one recipient to send the gift"));
+      return;
+    }
+
+    const gift = dynamicGifts.find(g => g.id === targetGiftId);
+    if (!gift) return;
+
+    await sendGiftCore(gift, targetRecipients, selectedQuantity, false);
+  };
+
+  const handleComboClick = async () => {
+    if (!lastGiftDataRef.current || isSendingGift || sendingGiftRef.current) return;
+    setComboPressEffect(true);
+    setTimeout(() => setComboPressEffect(false), 120);
+    const { gift, recipientIds, quantity } = lastGiftDataRef.current;
+    await sendGiftCore(gift, recipientIds, quantity, true);
   };
 
   const sendGifEmoji = async (url: string) => {
@@ -2591,7 +2915,10 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
               <div key={i} className="flex flex-col items-center gap-1">
                 <button onClick={() => handleMicClick(i)} className={`${micSizeClass} flex items-center justify-center relative transition-all duration-300 active:scale-90`}>
                   {mic?.user ? (
-                    <div className="w-full h-full relative flex items-center justify-center animate-in zoom-in duration-200">
+                    <div 
+                      data-mic-user-uid={mic.user.uid}
+                      className="w-full h-full relative flex items-center justify-center animate-in zoom-in duration-200"
+                    >
                       <div className="w-full h-full rounded-full overflow-hidden border border-white/10 bg-black/20 relative z-10 shadow-lg">
                         {mic.user.animatedAvatar ? (
                           isVideoUrl(mic.user.animatedAvatar) ? (
@@ -2604,6 +2931,15 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                         )}
                       </div>
                       {mic.user.currentFrame && <img src={mic.user.currentFrame} className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20 scale-125" alt="frame" />}
+
+                      {/* تأثير امتصاص الهدية داخل صورة المستخدم على المايك */}
+                      {pulsingMicUid === mic.user.uid && (
+                        <>
+                          <div className="absolute -inset-2.5 rounded-full border-2 border-yellow-300 animate-ping pointer-events-none z-30" style={{ animationDuration: '0.6s' }}></div>
+                          <div className="absolute inset-0 rounded-full bg-yellow-400/40 animate-pulse pointer-events-none z-30"></div>
+                        </>
+                      )}
+
                       {/* Speaking indicator waves */}
                       {(activeSpeakers[mic.user.uid] || (currentRoom?.musicState?.playing && currentRoom?.musicState?.senderUid === mic.user.uid)) && (
                         <div className="absolute inset-0 pointer-events-none z-0">
@@ -2762,7 +3098,21 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
               </form>
             </div>
           </div>
-          <button onClick={() => setShowGifts(true)} className="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center shadow-xl active:scale-90 transition-transform flex-shrink-0 overflow-hidden relative group">
+          <button onClick={() => {
+            if (selectedUserIds.size === 0) {
+              const defaultRecipient = usersOnMics.find(u => u.uid && u.uid !== user?.uid)?.uid 
+                || usersOnMics[0]?.uid 
+                || currentRoom.hostId 
+                || currentRoom.userId 
+                || currentRoom.ownerId 
+                || user?.uid;
+              if (defaultRecipient) setSelectedUserIds(new Set([defaultRecipient]));
+            }
+            if (!selectedGiftId && filteredGifts.length > 0) {
+              setSelectedGiftId(filteredGifts[0].id);
+            }
+            setShowGifts(true);
+          }} className="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center shadow-xl active:scale-90 transition-transform flex-shrink-0 overflow-hidden relative group">
             {/* Custom Icon - covers the background color completely when loaded */}
             {designSettings?.giftButtonIcon && (
               <img 
@@ -4693,10 +5043,181 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         </div>
       )}
 
+      {/* طيران الهدايا نحو صورة المستخدم على المايك */}
+      {flyingGifts.map(item => (
+        <FlyingGiftItem 
+          key={item.id} 
+          item={item} 
+          onComplete={() => setFlyingGifts(prev => prev.filter(g => g.id !== item.id))} 
+        />
+      ))}
+
+      {/* دائرة احتفالية في منتصف الشاشة تظهر لمدة ثانيتين عند الفوز بالحظ */}
+      {showLuckyWinModal && luckyWinInfo && (() => {
+        // تحديد أيقونة الدائرة حسب مضاعف الفوز (4 مستويات للـ X)
+        const m = luckyWinInfo.multiplier;
+        let activeCircleIcon: string | null = null;
+        if (m >= 30 && designSettings?.luckyCircleTier4) {
+          activeCircleIcon = designSettings.luckyCircleTier4;
+        } else if (m >= 20 && designSettings?.luckyCircleTier3) {
+          activeCircleIcon = designSettings.luckyCircleTier3;
+        } else if (m >= 10 && designSettings?.luckyCircleTier2) {
+          activeCircleIcon = designSettings.luckyCircleTier2;
+        } else if (m >= 5 && designSettings?.luckyCircleTier1) {
+          activeCircleIcon = designSettings.luckyCircleTier1;
+        } else {
+          // إذا كان المضاعف أقل من 5، استخدام الدائرة 1 إن وُجدت أو الافتراضي
+          activeCircleIcon = designSettings?.luckyCircleTier1 || null;
+        }
+
+        return (
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center pointer-events-none p-4 animate-in zoom-in-75 duration-300">
+            {activeCircleIcon ? (
+              <div className="relative w-[336px] h-[336px] sm:w-[378px] sm:h-[378px] -translate-y-24 sm:-translate-y-28 flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust select-none">
+                {/* صورة أيقونة الدائرة المخصصة كخلفية دائرية كاملة مكبّرة وضخمة جداً (+5%) */}
+                <img 
+                  src={activeCircleIcon} 
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_0_50px_rgba(234,179,8,0.9)]" 
+                  alt="Lucky Win Circle" 
+                />
+                
+                {/* محتوى نصوص الفوز بحجم مصغر وناعم لترك كامل الأيقونة مكشوفة وواضحة */}
+                <div className="relative z-10 flex flex-col items-center gap-0.5 max-w-[145px]">
+                  <h3 className="text-white font-black text-[9.5px] tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                    🎉 مبارك ربحت 🎉
+                  </h3>
+                  
+                  <div className="flex items-center gap-1 bg-black/80 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-yellow-400/50 shadow-md my-0.5">
+                    <i className="fas fa-coins text-yellow-300 text-[9px]"></i>
+                    <span className="text-[10.5px] font-black text-yellow-200 font-mono tracking-wide">
+                      +{luckyWinInfo.coins.toLocaleString('en-US')} كوينز
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-[7px] font-black text-black bg-yellow-300 px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">
+                      مضاعف x{luckyWinInfo.multiplier}{luckyWinInfo.quantity && luckyWinInfo.quantity > 1 ? ` (${luckyWinInfo.quantity}X)` : ''}
+                    </span>
+                    <span className="text-[7.5px] font-bold text-white truncate max-w-[75px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                      {luckyWinInfo.giftName}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="relative w-[315px] h-[315px] sm:w-[357px] sm:h-[357px] -translate-y-24 sm:-translate-y-28 rounded-full bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600 border-2 border-yellow-200/80 shadow-2xl flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust">
+                {/* بدون أيقونة التاج وبحجم مصغر ومرتب */}
+                <div className="relative z-10 flex flex-col items-center gap-0.5 max-w-[145px]">
+                  <h3 className="text-white font-black text-[9.5px] tracking-tight drop-shadow-md">
+                    🎉 مبارك ربحت 🎉
+                  </h3>
+                  
+                  <div className="flex items-center gap-1 bg-black/70 px-2.5 py-0.5 rounded-full border border-yellow-400/40 my-0.5 shadow-md">
+                    <i className="fas fa-coins text-yellow-300 text-[9px]"></i>
+                    <span className="text-[10.5px] font-black text-yellow-200 font-mono tracking-wide">
+                      +{luckyWinInfo.coins.toLocaleString('en-US')} كوينز
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-[7px] font-black text-black/90 bg-yellow-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      مضاعف x{luckyWinInfo.multiplier}{luckyWinInfo.quantity && luckyWinInfo.quantity > 1 ? ` (${luckyWinInfo.quantity}X)` : ''}
+                    </span>
+                    <span className="text-[7.5px] font-bold text-white truncate max-w-[75px] drop-shadow-sm">
+                      {luckyWinInfo.giftName}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* زر الـ COMBO الدائري أسفل منتصف الغرفة لإعادة الرمي مباشرة */}
+      {comboActive && (
+        <div 
+          onClick={handleComboClick}
+          className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[950] flex items-center justify-center cursor-pointer select-none transition-all duration-100 ease-out active:scale-90 active:translate-y-0.5 active:brightness-110 ${comboPressEffect ? 'scale-90 translate-y-0.5 brightness-110' : 'hover:scale-105'} animate-in zoom-in-75 duration-200`}
+          title="COMBO - انقر لإعادة الرمي فوراً"
+        >
+          <div className="relative w-[72px] h-[72px] rounded-full flex items-center justify-center">
+            {/* SVG Progress Circle for countdown in solid vivid purple */}
+            <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 72 72">
+              <circle
+                cx="36"
+                cy="36"
+                r="34"
+                className="stroke-purple-950/70"
+                strokeWidth="4"
+                fill="none"
+              />
+              <circle
+                cx="36"
+                cy="36"
+                r="34"
+                stroke="#a855f7"
+                className="transition-all duration-75"
+                strokeWidth="4"
+                strokeLinecap="round"
+                fill="none"
+                strokeDasharray="213.6"
+                strokeDashoffset={213.6 - (213.6 * comboProgress) / 100}
+              />
+            </svg>
+
+            {/* Inner Core Button: Custom Icon or App Theme Colors */}
+            {designSettings?.comboButtonIcon ? (
+              <div className="w-[64px] h-[64px] rounded-full flex flex-col items-center justify-center relative overflow-hidden select-none shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+                <img 
+                  src={designSettings.comboButtonIcon} 
+                  className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none" 
+                  alt="Combo" 
+                />
+                {/* طبقة تظليل خفيفة لضمان وضوح كلمة COMBO والشارة فوق أي خلفية */}
+                <div className="absolute inset-0 bg-black/25 pointer-events-none"></div>
+
+                <span className="relative z-10 text-[11px] font-black text-white tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-none uppercase">
+                  COMBO
+                </span>
+                <div className="relative z-10 mt-0.5 h-[16px] min-w-[16px] px-1 bg-black/80 backdrop-blur-xs rounded-full border border-purple-300/40 flex items-center justify-center shadow-sm">
+                  <span className="text-[8.5px] font-black text-purple-200 leading-none font-mono">
+                    x{comboCount}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="w-[64px] h-[64px] rounded-full bg-gradient-to-tr from-purple-700 via-fuchsia-600 to-pink-500 border border-fuchsia-200/90 shadow-[0_0_25px_rgba(168,85,247,0.7)] flex flex-col items-center justify-center text-center select-none">
+                <span className="text-xs font-black text-white tracking-wider drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] leading-none">
+                  COMBO
+                </span>
+                <div className="mt-0.5 h-[16px] min-w-[16px] px-1 bg-black/70 rounded-full border border-fuchsia-300/40 flex items-center justify-center">
+                  <span className="text-[8.5px] font-black text-fuchsia-200 leading-none font-mono">
+                    x{comboCount}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Pulsing ring on active */}
+            <div className="absolute -inset-1 rounded-full border border-purple-500/40 animate-ping pointer-events-none opacity-40"></div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); } 
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } } 
         .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+        @keyframes depthThrust {
+          0% { transform: scale(0.8); }
+          50% { transform: scale(1.18); }
+          100% { transform: scale(0.8); }
+        }
+        .animate-depth-thrust {
+          animation: depthThrust 0.75s ease-in-out infinite;
+        }
         
         @keyframes marquee-infinite {
           0% { transform: translateX(0%); }

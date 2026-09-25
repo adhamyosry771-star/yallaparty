@@ -39,7 +39,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
   const [globalTrophyItemBg, setGlobalTrophyItemBg] = useState('');
   const [globalTrophyTabActiveBg, setGlobalTrophyTabActiveBg] = useState('');
 
-  const [adminTab, setAdminTab] = useState<'users' | 'news' | 'banners' | 'secretClubBanners' | 'secretClubBg' | 'bgs' | 'rooms' | 'secretClubRooms' | 'trophyBg' | 'design' | 'messages' | 'store' | 'emojis' | 'gifts' | 'support' | 'cp' | 'fruits' | 'reports' | 'mainImages' | 'agencyDesign' | 'carnival' | 'roomFrames' | 'roomCenters' | 'wealthDesign' | 'charismaDesign' | 'topFramesDesign' | 'menuButtonsDesign'>('users');
+  const [adminTab, setAdminTab] = useState<'users' | 'news' | 'banners' | 'secretClubBanners' | 'secretClubBg' | 'bgs' | 'rooms' | 'secretClubRooms' | 'trophyBg' | 'design' | 'messages' | 'store' | 'emojis' | 'gifts' | 'support' | 'cp' | 'fruits' | 'reports' | 'mainImages' | 'agencyDesign' | 'carnival' | 'roomFrames' | 'roomCenters' | 'wealthDesign' | 'charismaDesign' | 'topFramesDesign' | 'menuButtonsDesign' | 'luckyDesign'>('users');
+  const [comboButtonIcon, setComboButtonIcon] = useState<string>('');
+  
+  // دوائر تنبيه الفوز بالحظ (Lucky Win Alert Circles - 4 Tiers)
+  const [luckyCircleTier1, setLuckyCircleTier1] = useState<string>('');
+  const [luckyCircleTier2, setLuckyCircleTier2] = useState<string>('');
+  const [luckyCircleTier3, setLuckyCircleTier3] = useState<string>('');
+  const [luckyCircleTier4, setLuckyCircleTier4] = useState<string>('');
   
   // Top Frames / Podium Frames (اطارات التوبات)
   const [top1PodiumFrame, setTop1PodiumFrame] = useState('');
@@ -185,6 +192,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
   const [giftIcon, setGiftIcon] = useState('');
   const [giftAnimation, setGiftAnimation] = useState('');
   const [giftCategory, setGiftCategory] = useState('normal');
+  const [luckyRate, setLuckyRate] = useState<number>(80);
+  const [luckyMultipliersPreset, setLuckyMultipliersPreset] = useState<'standard' | 'high' | 'jackpot' | 'custom'>('standard');
+  const [customLuckyMultipliers, setCustomLuckyMultipliers] = useState('0.05, 0.5, 1, 2, 5, 10, 25');
 
   // Grant States
   const [grantType, setGrantType] = useState<'frame' | 'entry' | 'background'>('frame');
@@ -246,6 +256,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
   const micLockedInputRef = useRef<HTMLInputElement>(null);
   const waveRoomInputRef = useRef<HTMLInputElement>(null);
   const giftButtonInputRef = useRef<HTMLInputElement>(null);
+  const comboButtonInputRef = useRef<HTMLInputElement>(null);
+  const luckyCircle1InputRef = useRef<HTMLInputElement>(null);
+  const luckyCircle2InputRef = useRef<HTMLInputElement>(null);
+  const luckyCircle3InputRef = useRef<HTMLInputElement>(null);
+  const luckyCircle4InputRef = useRef<HTMLInputElement>(null);
   const gamesButtonInputRef = useRef<HTMLInputElement>(null);
   const msgImageRef = useRef<HTMLInputElement>(null);
   const idIconInputRef = useRef<HTMLInputElement>(null);
@@ -335,6 +350,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
         setMicLockedIcon(data.micLockedIcon || null);
         setWaveRoomIcon(data.waveRoomIcon || null);
         setGiftButtonIcon(data.giftButtonIcon || null);
+        setComboButtonIcon(data.comboButtonIcon || '');
+        setLuckyCircleTier1(data.luckyCircleTier1 || '');
+        setLuckyCircleTier2(data.luckyCircleTier2 || '');
+        setLuckyCircleTier3(data.luckyCircleTier3 || '');
+        setLuckyCircleTier4(data.luckyCircleTier4 || '');
         setGamesButtonIcon(data.gamesButtonIcon || null);
         setRoomFrameTop1(data.roomFrameTop1 || '');
         setRoomFrameTop2(data.roomFrameTop2 || '');
@@ -696,12 +716,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
     if (!giftName || !giftPrice || !giftIcon) return alert("يرجى ملأ البيانات الأساسية للهدايا");
     setIsPublishing(true);
     try {
+      let parsedMultipliers: number[] = [0.05, 0.5, 1, 2, 5, 10, 25];
+      if (giftCategory === 'lucky') {
+        if (luckyMultipliersPreset === 'high') {
+          parsedMultipliers = [0.1, 1, 2, 5, 15, 30, 50];
+        } else if (luckyMultipliersPreset === 'jackpot') {
+          parsedMultipliers = [0.05, 0.2, 1, 5, 10, 25, 50, 100];
+        } else if (luckyMultipliersPreset === 'custom') {
+          const list = customLuckyMultipliers.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
+          if (list.length > 0) parsedMultipliers = list;
+        }
+      }
+
       await addDoc(collection(db, "gifts"), {
         name: giftName,
         price: parseInt(giftPrice),
         icon: giftIcon,
         animation: giftAnimation || null,
         tab: giftCategory,
+        luckyRate: giftCategory === 'lucky' ? (Number(luckyRate) || 80) : null,
+        luckyMultipliers: giftCategory === 'lucky' ? parsedMultipliers : null,
         createdAt: serverTimestamp()
       });
       setGiftName('');
@@ -709,6 +743,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
       setGiftIcon('');
       setGiftAnimation('');
       setGiftCategory('normal');
+      setLuckyRate(80);
+      setLuckyMultipliersPreset('standard');
+      setCustomLuckyMultipliers('0.05, 0.5, 1, 2, 5, 10, 25');
       alert("تم نشر الهدية بنجاح في صندوق الهدايا");
     } catch (e) {
       alert("خطأ في النشر");
@@ -1394,6 +1431,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
       <input type="file" ref={micOpenInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setMicOpenIcon)} />
       <input type="file" ref={micLockedInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setMicLockedIcon)} />
       <input type="file" ref={waveRoomInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setWaveRoomIcon)} />
+      <input type="file" ref={comboButtonInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setComboButtonIcon)} />
+      <input type="file" ref={luckyCircle1InputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setLuckyCircleTier1)} />
+      <input type="file" ref={luckyCircle2InputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setLuckyCircleTier2)} />
+      <input type="file" ref={luckyCircle3InputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setLuckyCircleTier3)} />
+      <input type="file" ref={luckyCircle4InputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setLuckyCircleTier4)} />
       <input type="file" ref={msgImageRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setMsgImage)} />
       <input type="file" ref={idIconInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setNewCustomIdIcon)} />
 
@@ -1421,6 +1463,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
               {id: 'store', label: t('المتجر', 'Store')},
               {id: 'emojis', label: t('إيموجي', 'Emoji')},
               {id: 'gifts', label: t('الهدايا', 'Gifts')},
+              {id: 'luckyDesign', label: t('تصاميم المحظوظة', 'Lucky Designs')},
               {id: 'mainImages', label: t('الصور الرئيسية', 'Main Images')},
               {id: 'agencyDesign', label: t('تصميم الوكالات', 'Agency Design')},
               {id: 'carnival', label: t('حدث الافتتاح', 'Opening Event')},
@@ -2831,7 +2874,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
                     className="w-full bg-white/5 border border-white/10 p-3.5 rounded-2xl text-xs text-white outline-none focus:border-purple-500/40"
                   >
                     <option value="normal">عادية</option>
-                    <option value="lucky">محظوظة</option>
+                    <option value="lucky">محظوظة (هدايا الحظ)</option>
                     <option value="cp">CP</option>
                     <option value="famous">مشاهير</option>
                     <option value="country">دولة</option>
@@ -2839,6 +2882,99 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
                     <option value="birthday">ميلاد</option>
                   </select>
                 </div>
+
+                {giftCategory === 'lucky' && (
+                  <div className="bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-purple-900/30 p-4 rounded-3xl border border-yellow-500/30 space-y-4 animate-in zoom-in duration-300">
+                    <div className="flex items-center justify-between border-b border-yellow-500/20 pb-2">
+                      <div className="flex items-center gap-2">
+                        <i className="fas fa-dice text-yellow-400 text-sm"></i>
+                        <span className="text-xs font-black text-yellow-300">إعدادات نسبة الحظ والمردود</span>
+                      </div>
+                      <span className="text-[9px] bg-yellow-400/20 text-yellow-300 font-bold px-2 py-0.5 rounded-full border border-yellow-400/30">
+                        {luckyRate}% نسبة الفوز
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center px-1">
+                        <label className="text-[9px] font-black text-yellow-200/80 uppercase tracking-widest">نسبة الحظ (احتمال ربح كوينزات)</label>
+                        <span className="text-[10px] font-black text-yellow-400 font-mono">{luckyRate}%</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="10" 
+                        max="100" 
+                        step="5"
+                        value={luckyRate} 
+                        onChange={e => setLuckyRate(parseInt(e.target.value))} 
+                        className="w-full accent-yellow-400 cursor-pointer h-2 bg-white/10 rounded-lg"
+                      />
+                      <div className="flex justify-between text-[8px] text-white/40 px-1 font-bold">
+                        <span>10% (نادر)</span>
+                        <span>50% (متوازن)</span>
+                        <span>80% (موصى به)</span>
+                        <span>100% (فوز دائم)</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black text-yellow-200/80 uppercase tracking-widest">نموذج مضاعفات المردود</label>
+                      <select 
+                        value={luckyMultipliersPreset} 
+                        onChange={e => setLuckyMultipliersPreset(e.target.value as any)}
+                        className="w-full bg-black/40 border border-yellow-500/30 p-3 rounded-2xl text-xs text-white outline-none focus:border-yellow-400"
+                      >
+                        <option value="standard">قياسي: 0.05x إلى 25x (مثلاً: 100 إلى 50,000 عند رمي 2000)</option>
+                        <option value="high">حماسي عالي: 0.1x إلى 50x (مضاعفات قوية)</option>
+                        <option value="jackpot">جاكبوت أسطوري: 0.05x إلى 100x</option>
+                        <option value="custom">مخصص (أدخل المضاعفات يدوياً)</option>
+                      </select>
+                    </div>
+
+                    {luckyMultipliersPreset === 'custom' && (
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-yellow-200/80 uppercase tracking-widest">المضاعفات المخصصة (مفصولة بفاصلة)</label>
+                        <input 
+                          type="text" 
+                          value={customLuckyMultipliers} 
+                          onChange={e => setCustomLuckyMultipliers(e.target.value)} 
+                          placeholder="مثلاً: 0.05, 0.5, 1, 2, 5, 10, 25" 
+                          className="w-full bg-black/40 border border-yellow-500/30 p-3 rounded-2xl text-xs text-white font-mono outline-none"
+                        />
+                      </div>
+                    )}
+
+                    {/* معاينة حية للمردود بالأرقام */}
+                    {(() => {
+                      const basePrice = parseInt(giftPrice) || 2000;
+                      let multipliers = [0.05, 0.5, 1, 2, 5, 10, 25];
+                      if (luckyMultipliersPreset === 'high') multipliers = [0.1, 1, 2, 5, 15, 30, 50];
+                      if (luckyMultipliersPreset === 'jackpot') multipliers = [0.05, 0.2, 1, 5, 10, 25, 50, 100];
+                      if (luckyMultipliersPreset === 'custom') {
+                        const customList = customLuckyMultipliers.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n) && n > 0);
+                        if (customList.length > 0) multipliers = customList;
+                      }
+
+                      return (
+                        <div className="bg-black/30 p-3 rounded-2xl border border-white/5 space-y-2">
+                          <p className="text-[9px] font-black text-white/80">
+                            معاينة مردود الكوينزات عند رمي الهدية ({basePrice.toLocaleString('en-US')} كوينز):
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {multipliers.map((m, idx) => {
+                              const coinsWon = Math.floor(basePrice * m);
+                              return (
+                                <span key={idx} className="bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-lg text-[9px] text-yellow-300 font-bold font-mono">
+                                  {m}x = {coinsWon.toLocaleString('en-US')} كوينز
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
               <button 
@@ -2860,10 +2996,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
                         <img src={gift.icon} className="w-10 h-10 object-contain" />
                       ) : gift.icon}
                     </div>
-                    <div className="text-center">
-                      <p className="text-[10px] font-black text-white truncate w-24">{gift.name}</p>
+                    <div className="text-center w-full">
+                      <p className="text-[10px] font-black text-white truncate w-24 mx-auto">{gift.name}</p>
                       <p className="text-[8px] text-yellow-500 font-bold">{gift.price} كوينز</p>
                       <span className="text-[7px] text-white/30 uppercase">{gift.tab}</span>
+                      {gift.tab === 'lucky' && (
+                        <div className="mt-1 flex flex-col items-center gap-0.5">
+                          <span className="text-[8px] bg-yellow-400/20 text-yellow-300 font-bold px-1.5 py-0.5 rounded-full border border-yellow-400/30">
+                            🍀 حظ {gift.luckyRate || 80}%
+                          </span>
+                          {gift.luckyMultipliers && gift.luckyMultipliers.length > 0 && (
+                            <span className="text-[7px] text-yellow-400/70 font-mono truncate max-w-full">
+                              مردود حتى {Math.max(...gift.luckyMultipliers)}x
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button 
                       onClick={async () => {
@@ -2883,6 +3031,422 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {adminTab === 'luckyDesign' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* بطاقة زر الكومبو */}
+            <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/10 space-y-6 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 p-0.5 shadow-lg flex items-center justify-center">
+                    <div className="w-full h-full bg-black/40 rounded-[14px] flex items-center justify-center text-pink-300">
+                      <i className="fas fa-redo-alt text-lg"></i>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white">أيقونة زر الكومبو (COMBO)</h3>
+                    <p className="text-[10px] text-purple-300/80 font-bold uppercase tracking-wider">
+                      تخصيص الأيقونة الداخلية لزر الكومبو وحولها الدائرة التنازلية
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[9px] bg-purple-500/20 text-purple-300 font-bold px-3 py-1 rounded-full border border-purple-500/30">
+                  زر الكومبو
+                </span>
+              </div>
+
+              {/* بطاقة إدخال أيقونة الكومبو */}
+              <div className="space-y-4 bg-black/30 p-5 rounded-3xl border border-white/5">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <i className="fas fa-image text-purple-400"></i>
+                    <span>رابط أيقونة زر الكومبو (PNG / GIF شفاف)</span>
+                  </label>
+                  <p className="text-[9px] text-white/50 leading-relaxed">
+                    ضع رابط الأيقونة التي ستظهر بقلب زر الكومبو، وتلتف حول حوافها الدائرة البنفسجية التي تنقص حسب عداد الثواني مع كلمة COMBO.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={comboButtonIcon}
+                    onChange={(e) => setComboButtonIcon(e.target.value)}
+                    placeholder="https://.../combo-icon.png (رابط الأيقونة)"
+                    className="flex-1 bg-white/5 border border-white/10 py-3.5 px-4 rounded-2xl text-[10px] text-white outline-none focus:border-purple-400/50 transition-all font-mono"
+                  />
+                  <button 
+                    onClick={() => comboButtonInputRef.current?.click()}
+                    className="px-4 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 rounded-2xl text-white text-xs font-bold flex items-center gap-1.5 transition-all"
+                    title="رفع صورة من الجهاز"
+                  >
+                    <i className="fas fa-upload text-[11px]"></i>
+                    <span className="text-[10px]">رفع</span>
+                  </button>
+                  {comboButtonIcon && (
+                    <button 
+                      onClick={() => setComboButtonIcon('')}
+                      className="px-3 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-2xl text-red-400 text-xs transition-all"
+                      title="مسح الرابط"
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* المعاينة الحية لزر الكومبو */}
+              <div className="bg-black/40 p-6 rounded-3xl border border-white/10 flex flex-col items-center justify-center space-y-4 text-center">
+                <p className="text-[10px] font-black text-white/80 uppercase tracking-widest">
+                  معاينة حية لزر الكومبو كما يظهر في الغرفة
+                </p>
+
+                <div className="relative w-[84px] h-[84px] rounded-full flex items-center justify-center bg-black/60 shadow-inner">
+                  <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 84 84">
+                    <circle
+                      cx="42"
+                      cy="42"
+                      r="39.5"
+                      className="stroke-purple-950/70"
+                      strokeWidth="4.5"
+                      fill="none"
+                    />
+                    <circle
+                      cx="42"
+                      cy="42"
+                      r="39.5"
+                      stroke="#a855f7"
+                      strokeWidth="4.5"
+                      strokeLinecap="round"
+                      fill="none"
+                      strokeDasharray="248"
+                      strokeDashoffset="62"
+                    />
+                  </svg>
+
+                  {comboButtonIcon ? (
+                    <div className="w-[75px] h-[75px] rounded-full flex flex-col items-center justify-center relative overflow-hidden select-none shadow-md">
+                      <img 
+                        src={comboButtonIcon} 
+                        className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none" 
+                        alt="Combo Preview" 
+                      />
+                      <div className="absolute inset-0 bg-black/25 pointer-events-none"></div>
+
+                      <span className="relative z-10 text-[11px] font-black text-white tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-none uppercase">
+                        COMBO
+                      </span>
+                      <div className="relative z-10 mt-0.5 h-[16px] min-w-[16px] px-1 bg-black/80 backdrop-blur-xs rounded-full border border-purple-300/40 flex items-center justify-center shadow-sm">
+                        <span className="text-[8.5px] font-black text-purple-200 leading-none font-mono">
+                          x3
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-[75px] h-[75px] rounded-full bg-gradient-to-tr from-purple-700 via-fuchsia-600 to-pink-500 border border-fuchsia-200/90 shadow-[0_0_25px_rgba(168,85,247,0.7)] flex flex-col items-center justify-center text-center select-none">
+                      <span className="text-xs font-black text-white tracking-wider drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] leading-none">
+                        COMBO
+                      </span>
+                      <div className="mt-0.5 h-[16px] min-w-[16px] px-1 bg-black/70 rounded-full border border-fuchsia-300/40 flex items-center justify-center">
+                        <span className="text-[8.5px] font-black text-fuchsia-200 leading-none font-mono">
+                          x3
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="absolute -inset-1 rounded-full border border-purple-500/40 animate-ping pointer-events-none opacity-40"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* بطاقة دوائر تنبيه فوز هدايا الحظ حسب مستويات الـ X */}
+            <div className="bg-white/5 p-6 rounded-[2.5rem] border border-white/10 space-y-6 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 p-0.5 shadow-lg flex items-center justify-center">
+                    <div className="w-full h-full bg-black/40 rounded-[14px] flex items-center justify-center text-yellow-300">
+                      <i className="fas fa-trophy text-lg"></i>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white">دوائر تنبيه فوز المحظوظة (حسب مضاعف الـ X)</h3>
+                    <p className="text-[10px] text-yellow-300/80 font-bold uppercase tracking-wider">
+                      أيقونات مخصصة لدوائر التنبيه التي تظهر في منتصف الشاشة حسب مضاعف الفوز وبدون التاج المزيف
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[9px] bg-yellow-400/20 text-yellow-300 font-bold px-3 py-1 rounded-full border border-yellow-400/30">
+                  4 مستويات
+                </span>
+              </div>
+
+              {/* شبكة المستويات الأربعة */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* المستوى 1: ضعف 5 إلى 10 */}
+                <div className="bg-black/30 p-5 rounded-3xl border border-white/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 flex items-center justify-center text-[10px] font-black">1</span>
+                      <h4 className="text-xs font-black text-white">الدائرة رقم 1</h4>
+                    </div>
+                    <span className="text-[9px] font-black bg-blue-500/20 text-blue-300 px-2.5 py-0.5 rounded-full border border-blue-400/30">
+                      من ضعف 5 لحد 10
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={luckyCircleTier1}
+                      onChange={(e) => setLuckyCircleTier1(e.target.value)}
+                      placeholder="رابط أيقونة الدائرة 1 (PNG شفافة)..."
+                      className="flex-1 bg-white/5 border border-white/10 py-2.5 px-3 rounded-xl text-[10px] text-white outline-none focus:border-blue-400/50 transition-all font-mono"
+                    />
+                    <button 
+                      onClick={() => luckyCircle1InputRef.current?.click()}
+                      className="px-3 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 rounded-xl text-white text-[10px] font-bold flex items-center gap-1"
+                    >
+                      <i className="fas fa-upload text-[10px]"></i>
+                      <span>رفع</span>
+                    </button>
+                    {luckyCircleTier1 && (
+                      <button 
+                        onClick={() => setLuckyCircleTier1('')}
+                        className="px-2.5 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-xl text-red-400 text-xs"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    )}
+                  </div>
+                  {/* مصغّر المعاينة */}
+                  <div className="h-32 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-center relative overflow-hidden">
+                    {luckyCircleTier1 ? (
+                      <div className="relative w-28 h-28 flex items-center justify-center">
+                        <img src={luckyCircleTier1} className="w-full h-full object-contain pointer-events-none drop-shadow-md" alt="Tier 1" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center">
+                          <span className="text-[9px] font-black text-white leading-tight drop-shadow-md">🎉 مبارك ربحت 🎉</span>
+                          <span className="text-[8px] font-black text-yellow-300 font-mono mt-0.5">+5,000 كوينز</span>
+                          <span className="text-[7.5px] font-black bg-blue-500/80 text-white px-1.5 py-0.2 rounded-full mt-0.5">مضاعف x7</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-white/40 font-bold">لا يوجد أيقونة مخصصة (يستخدم الافتراضي)</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* المستوى 2: ضعف 10 إلى 20 */}
+                <div className="bg-black/30 p-5 rounded-3xl border border-white/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-black">2</span>
+                      <h4 className="text-xs font-black text-white">الدائرة رقم 2</h4>
+                    </div>
+                    <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-400/30">
+                      من ضعف 10 لحد 20
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={luckyCircleTier2}
+                      onChange={(e) => setLuckyCircleTier2(e.target.value)}
+                      placeholder="رابط أيقونة الدائرة 2 (PNG شفافة)..."
+                      className="flex-1 bg-white/5 border border-white/10 py-2.5 px-3 rounded-xl text-[10px] text-white outline-none focus:border-emerald-400/50 transition-all font-mono"
+                    />
+                    <button 
+                      onClick={() => luckyCircle2InputRef.current?.click()}
+                      className="px-3 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/40 rounded-xl text-white text-[10px] font-bold flex items-center gap-1"
+                    >
+                      <i className="fas fa-upload text-[10px]"></i>
+                      <span>رفع</span>
+                    </button>
+                    {luckyCircleTier2 && (
+                      <button 
+                        onClick={() => setLuckyCircleTier2('')}
+                        className="px-2.5 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-xl text-red-400 text-xs"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    )}
+                  </div>
+                  {/* مصغّر المعاينة */}
+                  <div className="h-32 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-center relative overflow-hidden">
+                    {luckyCircleTier2 ? (
+                      <div className="relative w-28 h-28 flex items-center justify-center">
+                        <img src={luckyCircleTier2} className="w-full h-full object-contain pointer-events-none drop-shadow-md" alt="Tier 2" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center">
+                          <span className="text-[9px] font-black text-white leading-tight drop-shadow-md">🎉 مبارك ربحت 🎉</span>
+                          <span className="text-[8px] font-black text-yellow-300 font-mono mt-0.5">+15,000 كوينز</span>
+                          <span className="text-[7.5px] font-black bg-emerald-500/80 text-white px-1.5 py-0.2 rounded-full mt-0.5">مضاعف x15</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-white/40 font-bold">لا يوجد أيقونة مخصصة (يستخدم الافتراضي)</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* المستوى 3: ضعف 20 إلى 30 */}
+                <div className="bg-black/30 p-5 rounded-3xl border border-white/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/40 flex items-center justify-center text-[10px] font-black">3</span>
+                      <h4 className="text-xs font-black text-white">الدائرة رقم 3</h4>
+                    </div>
+                    <span className="text-[9px] font-black bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-400/30">
+                      من ضعف 20 لحد 30
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={luckyCircleTier3}
+                      onChange={(e) => setLuckyCircleTier3(e.target.value)}
+                      placeholder="رابط أيقونة الدائرة 3 (PNG شفافة)..."
+                      className="flex-1 bg-white/5 border border-white/10 py-2.5 px-3 rounded-xl text-[10px] text-white outline-none focus:border-purple-400/50 transition-all font-mono"
+                    />
+                    <button 
+                      onClick={() => luckyCircle3InputRef.current?.click()}
+                      className="px-3 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 rounded-xl text-white text-[10px] font-bold flex items-center gap-1"
+                    >
+                      <i className="fas fa-upload text-[10px]"></i>
+                      <span>رفع</span>
+                    </button>
+                    {luckyCircleTier3 && (
+                      <button 
+                        onClick={() => setLuckyCircleTier3('')}
+                        className="px-2.5 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-xl text-red-400 text-xs"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    )}
+                  </div>
+                  {/* مصغّر المعاينة */}
+                  <div className="h-32 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-center relative overflow-hidden">
+                    {luckyCircleTier3 ? (
+                      <div className="relative w-28 h-28 flex items-center justify-center">
+                        <img src={luckyCircleTier3} className="w-full h-full object-contain pointer-events-none drop-shadow-md" alt="Tier 3" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center">
+                          <span className="text-[9px] font-black text-white leading-tight drop-shadow-md">🎉 مبارك ربحت 🎉</span>
+                          <span className="text-[8px] font-black text-yellow-300 font-mono mt-0.5">+30,000 كوينز</span>
+                          <span className="text-[7.5px] font-black bg-purple-500/80 text-white px-1.5 py-0.2 rounded-full mt-0.5">مضاعف x25</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-white/40 font-bold">لا يوجد أيقونة مخصصة (يستخدم الافتراضي)</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* المستوى 4: ضعف 30 وما فوق */}
+                <div className="bg-black/30 p-5 rounded-3xl border border-white/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center justify-center text-[10px] font-black">4</span>
+                      <h4 className="text-xs font-black text-white">الدائرة رقم 4</h4>
+                    </div>
+                    <span className="text-[9px] font-black bg-rose-500/20 text-rose-300 px-2.5 py-0.5 rounded-full border border-rose-400/30">
+                      من ضعف 30 وما فوق
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={luckyCircleTier4}
+                      onChange={(e) => setLuckyCircleTier4(e.target.value)}
+                      placeholder="رابط أيقونة الدائرة 4 (PNG شفافة)..."
+                      className="flex-1 bg-white/5 border border-white/10 py-2.5 px-3 rounded-xl text-[10px] text-white outline-none focus:border-rose-400/50 transition-all font-mono"
+                    />
+                    <button 
+                      onClick={() => luckyCircle4InputRef.current?.click()}
+                      className="px-3 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-500/40 rounded-xl text-white text-[10px] font-bold flex items-center gap-1"
+                    >
+                      <i className="fas fa-upload text-[10px]"></i>
+                      <span>رفع</span>
+                    </button>
+                    {luckyCircleTier4 && (
+                      <button 
+                        onClick={() => setLuckyCircleTier4('')}
+                        className="px-2.5 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-xl text-red-400 text-xs"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    )}
+                  </div>
+                  {/* مصغّر المعاينة */}
+                  <div className="h-36 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-center relative overflow-hidden">
+                    {luckyCircleTier4 ? (
+                      <div className="relative w-32 h-32 flex items-center justify-center">
+                        <img src={luckyCircleTier4} className="w-full h-full object-contain pointer-events-none drop-shadow-[0_0_15px_rgba(244,63,94,0.6)]" alt="Tier 4" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center">
+                          <span className="text-[10px] font-black text-white leading-tight drop-shadow-md">🎉 فوز أسطوري 🎉</span>
+                          <span className="text-[9px] font-black text-yellow-300 font-mono mt-0.5">+50,000 كوينز</span>
+                          <span className="text-[8px] font-black bg-rose-500 text-white px-2 py-0.5 rounded-full mt-1 shadow-sm">مضاعف x35+</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-white/40 font-bold">لا يوجد أيقونة مخصصة (يستخدم الافتراضي)</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* أزرار الحفظ والاستعادة لجميع التصاميم */}
+              <div className="flex gap-3 pt-3 border-t border-white/10">
+                <button 
+                  onClick={async () => {
+                    try {
+                      await setDoc(doc(db, "settings", "design"), {
+                        comboButtonIcon: comboButtonIcon.trim(),
+                        luckyCircleTier1: luckyCircleTier1.trim(),
+                        luckyCircleTier2: luckyCircleTier2.trim(),
+                        luckyCircleTier3: luckyCircleTier3.trim(),
+                        luckyCircleTier4: luckyCircleTier4.trim(),
+                      }, { merge: true });
+                      alert("تم حفظ تصاميم المحظوظة وزر الكومبو بنجاح وتطبيقها في جميع الغرف!");
+                    } catch (e: any) {
+                      console.error("Error saving lucky designs:", e);
+                      alert("حدث خطأ أثناء الحفظ: " + (e.message || e));
+                    }
+                  }}
+                  className="flex-1 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 py-4 rounded-2xl font-black text-xs text-black shadow-xl active:scale-95 transition-all border border-yellow-300/40 flex items-center justify-center gap-2"
+                >
+                  <i className="fas fa-check"></i>
+                  <span>حفظ جميع تصاميم المحظوظة</span>
+                </button>
+
+                <button 
+                  onClick={async () => {
+                    if (confirm("هل تريد استعادة جميع تصاميم المحظوظة والكومبو إلى التصاميم الافتراضية؟")) {
+                      try {
+                        await setDoc(doc(db, "settings", "design"), {
+                          comboButtonIcon: '',
+                          luckyCircleTier1: '',
+                          luckyCircleTier2: '',
+                          luckyCircleTier3: '',
+                          luckyCircleTier4: '',
+                        }, { merge: true });
+                        setComboButtonIcon('');
+                        setLuckyCircleTier1('');
+                        setLuckyCircleTier2('');
+                        setLuckyCircleTier3('');
+                        setLuckyCircleTier4('');
+                        alert("تمت استعادة التصاميم الافتراضية بنجاح!");
+                      } catch (e: any) {
+                        alert("خطأ: " + (e.message || e));
+                      }
+                    }
+                  }}
+                  className="px-6 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 py-4 rounded-2xl font-black text-xs active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <i className="fas fa-undo"></i>
+                  <span>استعادة الافتراضي</span>
+                </button>
               </div>
             </div>
           </div>
