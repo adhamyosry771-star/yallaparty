@@ -5103,57 +5103,57 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         return (
           <div className="fixed inset-0 z-[1200] flex items-center justify-center pointer-events-none p-4 animate-in zoom-in-75 duration-300">
             {activeCircleIcon ? (
-              <div className="relative w-[385px] h-[385px] sm:w-[430px] sm:h-[430px] -translate-y-36 sm:-translate-y-40 flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust select-none">
-                {/* صورة أيقونة الدائرة المخصصة كخلفية دائرية كاملة مكبّرة ومرفوعة للأعلى */}
+              <div className="relative w-[410px] h-[410px] sm:w-[460px] sm:h-[460px] -translate-y-64 sm:-translate-y-72 flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust select-none">
+                {/* صورة أيقونة الدائرة المخصصة كخلفية دائرية عملاقة مكبرة جداً ومرفوعة عالياً فوق زر الكومبو */}
                 <img 
                   src={activeCircleIcon} 
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_0_55px_rgba(234,179,8,0.95)]" 
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_0_60px_rgba(234,179,8,0.95)]" 
                   alt="Lucky Win Circle" 
                 />
                 
-                {/* محتوى نصوص الفوز مكبر بتناسق متوازن مع حجم الدائرة ليبقى في المنتصف دون أي تداخل */}
-                <div className="relative z-10 flex flex-col items-center gap-1 max-w-[170px]">
-                  <h3 className="text-white font-black text-[11px] tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                {/* محتوى نصوص الفوز بحجم ملموم ومصغر نسبة للدائرة لإبراز كامل جمال وتفاصيل الأيقونة */}
+                <div className="relative z-10 flex flex-col items-center gap-0.5 max-w-[145px]">
+                  <h3 className="text-white font-black text-[10px] tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
                     🎉 مبارك ربحت 🎉
                   </h3>
                   
-                  <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur-xs px-3 py-1 rounded-full border border-yellow-400/50 shadow-md my-0.5">
-                    <i className="fas fa-coins text-yellow-300 text-[10px]"></i>
-                    <span className="text-[12px] font-black text-yellow-200 font-mono tracking-wide">
+                  <div className="flex items-center gap-1 bg-black/80 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-yellow-400/50 shadow-md my-0.5">
+                    <i className="fas fa-coins text-yellow-300 text-[9.5px]"></i>
+                    <span className="text-[11px] font-black text-yellow-200 font-mono tracking-wide">
                       +{luckyWinInfo.coins.toLocaleString('en-US')} كوينز
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[8px] font-black text-black bg-yellow-300 px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-sm">
+                    <span className="text-[7.5px] font-black text-black bg-yellow-300 px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">
                       مضاعف x{luckyWinInfo.multiplier}{luckyWinInfo.quantity && luckyWinInfo.quantity > 1 ? ` (${luckyWinInfo.quantity}X)` : ''}
                     </span>
-                    <span className="text-[8.5px] font-bold text-white truncate max-w-[85px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                    <span className="text-[8px] font-bold text-white truncate max-w-[80px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                       {luckyWinInfo.giftName}
                     </span>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="relative w-[360px] h-[360px] sm:w-[400px] sm:h-[400px] -translate-y-36 sm:-translate-y-40 rounded-full bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600 border-2 border-yellow-200/80 shadow-2xl flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust">
-                {/* بدون أيقونة التاج وبحجم متناسق ومرفوع للأعلى */}
-                <div className="relative z-10 flex flex-col items-center gap-1 max-w-[170px]">
-                  <h3 className="text-white font-black text-[11px] tracking-tight drop-shadow-md">
+              <div className="relative w-[380px] h-[380px] sm:w-[420px] sm:h-[420px] -translate-y-64 sm:-translate-y-72 rounded-full bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600 border-2 border-yellow-200/80 shadow-2xl flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust">
+                {/* بدون أيقونة التاج وبحجم كبير مريح ومرفوع عالياً للأعلى */}
+                <div className="relative z-10 flex flex-col items-center gap-0.5 max-w-[145px]">
+                  <h3 className="text-white font-black text-[10px] tracking-tight drop-shadow-md">
                     🎉 مبارك ربحت 🎉
                   </h3>
                   
-                  <div className="flex items-center gap-1.5 bg-black/70 px-3 py-1 rounded-full border border-yellow-400/40 my-0.5 shadow-md">
-                    <i className="fas fa-coins text-yellow-300 text-[10px]"></i>
-                    <span className="text-[12px] font-black text-yellow-200 font-mono tracking-wide">
+                  <div className="flex items-center gap-1 bg-black/70 px-2.5 py-0.5 rounded-full border border-yellow-400/40 my-0.5 shadow-md">
+                    <i className="fas fa-coins text-yellow-300 text-[9.5px]"></i>
+                    <span className="text-[11px] font-black text-yellow-200 font-mono tracking-wide">
                       +{luckyWinInfo.coins.toLocaleString('en-US')} كوينز
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[8px] font-black text-black/90 bg-yellow-300 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="text-[7.5px] font-black text-black/90 bg-yellow-300 px-2 py-0.5 rounded-full whitespace-nowrap">
                       مضاعف x{luckyWinInfo.multiplier}{luckyWinInfo.quantity && luckyWinInfo.quantity > 1 ? ` (${luckyWinInfo.quantity}X)` : ''}
                     </span>
-                    <span className="text-[8.5px] font-bold text-white truncate max-w-[85px] drop-shadow-sm">
+                    <span className="text-[8px] font-bold text-white truncate max-w-[80px] drop-shadow-sm">
                       {luckyWinInfo.giftName}
                     </span>
                   </div>
