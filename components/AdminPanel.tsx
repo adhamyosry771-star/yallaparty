@@ -47,6 +47,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
   const [luckyCircleTier2, setLuckyCircleTier2] = useState<string>('');
   const [luckyCircleTier3, setLuckyCircleTier3] = useState<string>('');
   const [luckyCircleTier4, setLuckyCircleTier4] = useState<string>('');
+  // ساوند إفيكت فوز هدايا الحظ
+  const [luckyWinSound, setLuckyWinSound] = useState<string>('');
+  const [isPlayingLuckySound, setIsPlayingLuckySound] = useState(false);
+  const luckySoundAudioRef = useRef<HTMLAudioElement | null>(null);
   
   // Top Frames / Podium Frames (اطارات التوبات)
   const [top1PodiumFrame, setTop1PodiumFrame] = useState('');
@@ -261,6 +265,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
   const luckyCircle2InputRef = useRef<HTMLInputElement>(null);
   const luckyCircle3InputRef = useRef<HTMLInputElement>(null);
   const luckyCircle4InputRef = useRef<HTMLInputElement>(null);
+  const luckyWinSoundInputRef = useRef<HTMLInputElement>(null);
   const gamesButtonInputRef = useRef<HTMLInputElement>(null);
   const msgImageRef = useRef<HTMLInputElement>(null);
   const idIconInputRef = useRef<HTMLInputElement>(null);
@@ -355,6 +360,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
         setLuckyCircleTier2(data.luckyCircleTier2 || '');
         setLuckyCircleTier3(data.luckyCircleTier3 || '');
         setLuckyCircleTier4(data.luckyCircleTier4 || '');
+        setLuckyWinSound(data.luckyWinSound || '');
         setGamesButtonIcon(data.gamesButtonIcon || null);
         setRoomFrameTop1(data.roomFrameTop1 || '');
         setRoomFrameTop2(data.roomFrameTop2 || '');
@@ -1210,6 +1216,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
     }
   };
 
+  const handleAudioSelect = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2.5 * 1024 * 1024) {
+        alert("تنبيه: حجم الملف الصوتي كبير جداً (أكبر من 2.5 ميجابايت).\nيرجى اختيار ملف صوتي أقصر أو أصغر حجماً لتفادي بطء التحميل.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => setter(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const saveDesignSettings = async () => {
     try {
       await setDoc(doc(db, "settings", "design"), {
@@ -1436,6 +1455,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
       <input type="file" ref={luckyCircle2InputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setLuckyCircleTier2)} />
       <input type="file" ref={luckyCircle3InputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setLuckyCircleTier3)} />
       <input type="file" ref={luckyCircle4InputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setLuckyCircleTier4)} />
+      <input type="file" ref={luckyWinSoundInputRef} className="hidden" accept="audio/*" onChange={(e) => handleAudioSelect(e, setLuckyWinSound)} />
       <input type="file" ref={msgImageRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setMsgImage)} />
       <input type="file" ref={idIconInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageSelect(e, setNewCustomIdIcon)} />
 
@@ -3396,6 +3416,116 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
                 </div>
               </div>
 
+              {/* قسم ساوند إفيكت الفوز بالحظ (يعمل لجميع المستخدمين في الغرفة) */}
+              <div className="pt-4 border-t border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-yellow-500 to-amber-400 p-0.5 shadow-md flex items-center justify-center">
+                      <div className="w-full h-full bg-black/40 rounded-[10px] flex items-center justify-center text-yellow-300">
+                        <i className="fas fa-volume-up text-sm"></i>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white">المؤثر الصوتي لفوز هدايا الحظ (Sound Effect)</h4>
+                      <p className="text-[9.5px] text-yellow-300/80 font-bold">
+                        يشتغل في الغرفة لجميع المستخدمين الحاضرين فور فوز أي لاعب بالحظ
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] bg-yellow-400/20 text-yellow-300 font-bold px-2.5 py-0.5 rounded-full border border-yellow-400/30">
+                    صوت جماعي للغرفة
+                  </span>
+                </div>
+
+                <div className="bg-black/30 p-4 rounded-2xl border border-white/5 space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[9.5px] font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <i className="fas fa-music text-yellow-400"></i>
+                      <span>رابط الملف الصوتي أو رفع ملف صوتي من الجهاز (MP3 / WAV / OGG)</span>
+                    </label>
+                    <p className="text-[8.5px] text-white/50 leading-relaxed">
+                      هذا المؤثر الصوتي سيعمل في الغرفة الصوتية ويسمعه جميع الحاضرين تلقائياً عند فوز أي عضو، بينما تظهر الدائرة وزر الكومبو للرابح فقط لحفظ خصوصيته كما يشاهد بقية الأعضاء رسالة الفوز النصية في الشات.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={luckyWinSound}
+                      onChange={(e) => setLuckyWinSound(e.target.value)}
+                      placeholder="https://.../win-effect.mp3 (رابط الملف الصوتي أو رفع ملف من جهازك)..."
+                      className="flex-1 bg-white/5 border border-white/10 py-2.5 px-3 rounded-xl text-[10px] text-white outline-none focus:border-yellow-400/50 transition-all font-mono"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => luckyWinSoundInputRef.current?.click()}
+                      className="px-3.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 rounded-xl text-white text-[10px] font-bold flex items-center gap-1.5 transition-all"
+                      title="رفع ملف صوتي من الجهاز"
+                    >
+                      <i className="fas fa-file-audio text-[10px]"></i>
+                      <span>رفع صوت</span>
+                    </button>
+                    {luckyWinSound && (
+                      <>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (isPlayingLuckySound) {
+                              luckySoundAudioRef.current?.pause();
+                              setIsPlayingLuckySound(false);
+                            } else {
+                              try {
+                                if (!luckySoundAudioRef.current) {
+                                  luckySoundAudioRef.current = new Audio(luckyWinSound);
+                                  luckySoundAudioRef.current.onended = () => setIsPlayingLuckySound(false);
+                                } else {
+                                  luckySoundAudioRef.current.src = luckyWinSound;
+                                }
+                                luckySoundAudioRef.current.play().catch(() => {
+                                  alert("تعذر تشغيل الصوت، يرجى التأكد من صحة الرابط أو الملف الصوتي");
+                                  setIsPlayingLuckySound(false);
+                                });
+                                setIsPlayingLuckySound(true);
+                              } catch (err) {
+                                alert("خطأ في تشغيل الصوت");
+                              }
+                            }
+                          }}
+                          className={`px-3 border rounded-xl text-[10px] font-bold flex items-center gap-1 transition-all ${
+                            isPlayingLuckySound 
+                              ? 'bg-amber-500/30 border-amber-400 text-yellow-300 animate-pulse' 
+                              : 'bg-green-600/20 hover:bg-green-600/40 border-green-500/30 text-green-300'
+                          }`}
+                          title={isPlayingLuckySound ? "إيقاف الاستماع" : "تشغيل للتجربة"}
+                        >
+                          <i className={`fas ${isPlayingLuckySound ? 'fa-pause' : 'fa-play'} text-[9px]`}></i>
+                          <span>{isPlayingLuckySound ? 'إيقاف' : 'تجربة'}</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            luckySoundAudioRef.current?.pause();
+                            setIsPlayingLuckySound(false);
+                            setLuckyWinSound('');
+                          }}
+                          className="px-2.5 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-xl text-red-400 text-xs transition-all"
+                          title="حذف الصوت"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {luckyWinSound && (
+                    <div className="flex items-center gap-1.5 text-[9px] text-green-400/90 font-bold bg-green-500/10 px-2.5 py-1.5 rounded-lg border border-green-500/20">
+                      <i className="fas fa-check-circle text-green-400 text-[10px]"></i>
+                      <span>تم تحديد المؤثر الصوتي بنجاح. سيتم تشغيله لجميع المتواجدين في الغرفة تلقائياً عند فوز أي عضو.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* أزرار الحفظ والاستعادة لجميع التصاميم */}
               <div className="flex gap-3 pt-3 border-t border-white/10">
                 <button 
@@ -3407,8 +3537,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
                         luckyCircleTier2: luckyCircleTier2.trim(),
                         luckyCircleTier3: luckyCircleTier3.trim(),
                         luckyCircleTier4: luckyCircleTier4.trim(),
+                        luckyWinSound: luckyWinSound.trim(),
                       }, { merge: true });
-                      alert("تم حفظ تصاميم المحظوظة وزر الكومبو بنجاح وتطبيقها في جميع الغرف!");
+                      alert("تم حفظ تصاميم المحظوظة والمؤثر الصوتي وزر الكومبو بنجاح وتطبيقها في جميع الغرف!");
                     } catch (e: any) {
                       console.error("Error saving lucky designs:", e);
                       alert("حدث خطأ أثناء الحفظ: " + (e.message || e));
@@ -3422,7 +3553,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
 
                 <button 
                   onClick={async () => {
-                    if (confirm("هل تريد استعادة جميع تصاميم المحظوظة والكومبو إلى التصاميم الافتراضية؟")) {
+                    if (confirm("هل تريد استعادة جميع تصاميم المحظوظة والمؤثر الصوتي والكومبو إلى التصاميم الافتراضية؟")) {
                       try {
                         await setDoc(doc(db, "settings", "design"), {
                           comboButtonIcon: '',
@@ -3430,12 +3561,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, isOffic
                           luckyCircleTier2: '',
                           luckyCircleTier3: '',
                           luckyCircleTier4: '',
+                          luckyWinSound: '',
                         }, { merge: true });
                         setComboButtonIcon('');
                         setLuckyCircleTier1('');
                         setLuckyCircleTier2('');
                         setLuckyCircleTier3('');
                         setLuckyCircleTier4('');
+                        setLuckyWinSound('');
                         alert("تمت استعادة التصاميم الافتراضية بنجاح!");
                       } catch (e: any) {
                         alert("خطأ: " + (e.message || e));

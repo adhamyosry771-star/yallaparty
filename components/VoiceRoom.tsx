@@ -1253,6 +1253,21 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     return url.match(/\.(mp4|webm|ogg|mov)$/) !== null || url.includes('video');
   };
 
+  const lastPlayedLuckySoundTimeRef = useRef<number>(0);
+  const playLuckyWinAudioEffect = (soundUrl?: string) => {
+    try {
+      const src = soundUrl || designSettings?.luckyWinSound;
+      if (!src) return;
+      const audio = new Audio(src);
+      audio.volume = isRoomMuted ? 0 : 0.85;
+      audio.play().catch(err => {
+        console.warn("Autoplay block or delay for lucky win sound:", err);
+      });
+    } catch (e) {
+      console.warn("Error playing lucky win sound effect:", e);
+    }
+  };
+
   // مستمع للرسائل الحية مع فلترة للرسائل القديمة
   useEffect(() => {
     const q = query(
@@ -1270,10 +1285,10 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
       const filteredMsgs = liveMsgs.filter(m => m.type !== 'join');
       setMessages(filteredMsgs);
 
-      // Realtime detection of adding new enter/join messages
+      // Realtime detection of adding new enter/join messages & lucky win audio broadcast
       snap.docChanges().forEach(change => {
         if (change.type === "added") {
-          const docData = change.doc.data();
+          const docData = change.doc.data() as any;
           if (docData.type === 'join') {
             const id = change.doc.id;
             const name = docData.userName;
@@ -1288,6 +1303,15 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
             setTimeout(() => {
               setJoinNotifications(prev => prev.filter(item => item.id !== id));
             }, 3000);
+          } else if (docData.type === 'lucky_win') {
+            // تشغيل صوت الفوز لجميع الموجودين في الغرفة تلقائياً
+            if (Date.now() - lastPlayedLuckySoundTimeRef.current > 1500) {
+              lastPlayedLuckySoundTimeRef.current = Date.now();
+              const soundToPlay = docData.soundUrl || designSettings?.luckyWinSound;
+              if (soundToPlay) {
+                playLuckyWinAudioEffect(soundToPlay);
+              }
+            }
           }
         }
       });
@@ -1697,6 +1721,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         if (data.luckyCircleTier2) { const img = new Image(); img.src = data.luckyCircleTier2; }
         if (data.luckyCircleTier3) { const img = new Image(); img.src = data.luckyCircleTier3; }
         if (data.luckyCircleTier4) { const img = new Image(); img.src = data.luckyCircleTier4; }
+        if (data.luckyWinSound) { const snd = new Audio(); snd.src = data.luckyWinSound; }
       }
     });
     const unsubDefaultProps = onSnapshot(doc(db, "settings", "default_images"), (snap) => {
@@ -2214,13 +2239,18 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
               setShowLuckyWinModal(false);
             }, 2000);
 
-            // رسالة تهنئة في شات الغرفة
+            // تشغيل الساوند إفيكت للرابح فوراً وتحديث التوقيت
+            playLuckyWinAudioEffect(designSettings?.luckyWinSound);
+            lastPlayedLuckySoundTimeRef.current = Date.now();
+
+            // رسالة تهنئة في شات الغرفة مع رابط الساوند إفيكت ليعمل لجميع المستخدمين
             try {
               await addDoc(collection(db, "rooms", currentRoom.id, "chat"), {
                 userId: 'system',
                 userName: t('هدايا الحظ', 'Lucky Gifts'),
                 text: `🎉 مبارك! فاز ${currentUserData?.displayName || t('مستخدم', 'User')} بـ ${wonCoins.toLocaleString('en-US')} كوينز (مضاعف x${chosenMultiplier}${quantity > 1 ? ` مع ضرب ${quantity}X` : ''}) من هدية الحظ ${gift.name}!`,
                 type: 'lucky_win',
+                soundUrl: designSettings?.luckyWinSound || '',
                 userAvatar: currentUserData?.photoURL || '',
                 createdAt: serverTimestamp()
               });
@@ -5073,57 +5103,57 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         return (
           <div className="fixed inset-0 z-[1200] flex items-center justify-center pointer-events-none p-4 animate-in zoom-in-75 duration-300">
             {activeCircleIcon ? (
-              <div className="relative w-[336px] h-[336px] sm:w-[378px] sm:h-[378px] -translate-y-24 sm:-translate-y-28 flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust select-none">
-                {/* صورة أيقونة الدائرة المخصصة كخلفية دائرية كاملة مكبّرة وضخمة جداً (+5%) */}
+              <div className="relative w-[385px] h-[385px] sm:w-[430px] sm:h-[430px] -translate-y-36 sm:-translate-y-40 flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust select-none">
+                {/* صورة أيقونة الدائرة المخصصة كخلفية دائرية كاملة مكبّرة ومرفوعة للأعلى */}
                 <img 
                   src={activeCircleIcon} 
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_0_50px_rgba(234,179,8,0.9)]" 
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none drop-shadow-[0_0_55px_rgba(234,179,8,0.95)]" 
                   alt="Lucky Win Circle" 
                 />
                 
-                {/* محتوى نصوص الفوز بحجم مصغر وناعم لترك كامل الأيقونة مكشوفة وواضحة */}
-                <div className="relative z-10 flex flex-col items-center gap-0.5 max-w-[145px]">
-                  <h3 className="text-white font-black text-[9.5px] tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                {/* محتوى نصوص الفوز مكبر بتناسق متوازن مع حجم الدائرة ليبقى في المنتصف دون أي تداخل */}
+                <div className="relative z-10 flex flex-col items-center gap-1 max-w-[170px]">
+                  <h3 className="text-white font-black text-[11px] tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
                     🎉 مبارك ربحت 🎉
                   </h3>
                   
-                  <div className="flex items-center gap-1 bg-black/80 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-yellow-400/50 shadow-md my-0.5">
-                    <i className="fas fa-coins text-yellow-300 text-[9px]"></i>
-                    <span className="text-[10.5px] font-black text-yellow-200 font-mono tracking-wide">
+                  <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur-xs px-3 py-1 rounded-full border border-yellow-400/50 shadow-md my-0.5">
+                    <i className="fas fa-coins text-yellow-300 text-[10px]"></i>
+                    <span className="text-[12px] font-black text-yellow-200 font-mono tracking-wide">
                       +{luckyWinInfo.coins.toLocaleString('en-US')} كوينز
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[7px] font-black text-black bg-yellow-300 px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">
+                    <span className="text-[8px] font-black text-black bg-yellow-300 px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-sm">
                       مضاعف x{luckyWinInfo.multiplier}{luckyWinInfo.quantity && luckyWinInfo.quantity > 1 ? ` (${luckyWinInfo.quantity}X)` : ''}
                     </span>
-                    <span className="text-[7.5px] font-bold text-white truncate max-w-[75px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                    <span className="text-[8.5px] font-bold text-white truncate max-w-[85px] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                       {luckyWinInfo.giftName}
                     </span>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="relative w-[315px] h-[315px] sm:w-[357px] sm:h-[357px] -translate-y-24 sm:-translate-y-28 rounded-full bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600 border-2 border-yellow-200/80 shadow-2xl flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust">
-                {/* بدون أيقونة التاج وبحجم مصغر ومرتب */}
-                <div className="relative z-10 flex flex-col items-center gap-0.5 max-w-[145px]">
-                  <h3 className="text-white font-black text-[9.5px] tracking-tight drop-shadow-md">
+              <div className="relative w-[360px] h-[360px] sm:w-[400px] sm:h-[400px] -translate-y-36 sm:-translate-y-40 rounded-full bg-gradient-to-br from-amber-500 via-yellow-500 to-amber-600 border-2 border-yellow-200/80 shadow-2xl flex flex-col items-center justify-center p-4 text-center overflow-hidden animate-depth-thrust">
+                {/* بدون أيقونة التاج وبحجم متناسق ومرفوع للأعلى */}
+                <div className="relative z-10 flex flex-col items-center gap-1 max-w-[170px]">
+                  <h3 className="text-white font-black text-[11px] tracking-tight drop-shadow-md">
                     🎉 مبارك ربحت 🎉
                   </h3>
                   
-                  <div className="flex items-center gap-1 bg-black/70 px-2.5 py-0.5 rounded-full border border-yellow-400/40 my-0.5 shadow-md">
-                    <i className="fas fa-coins text-yellow-300 text-[9px]"></i>
-                    <span className="text-[10.5px] font-black text-yellow-200 font-mono tracking-wide">
+                  <div className="flex items-center gap-1.5 bg-black/70 px-3 py-1 rounded-full border border-yellow-400/40 my-0.5 shadow-md">
+                    <i className="fas fa-coins text-yellow-300 text-[10px]"></i>
+                    <span className="text-[12px] font-black text-yellow-200 font-mono tracking-wide">
                       +{luckyWinInfo.coins.toLocaleString('en-US')} كوينز
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[7px] font-black text-black/90 bg-yellow-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="text-[8px] font-black text-black/90 bg-yellow-300 px-2.5 py-0.5 rounded-full whitespace-nowrap">
                       مضاعف x{luckyWinInfo.multiplier}{luckyWinInfo.quantity && luckyWinInfo.quantity > 1 ? ` (${luckyWinInfo.quantity}X)` : ''}
                     </span>
-                    <span className="text-[7.5px] font-bold text-white truncate max-w-[75px] drop-shadow-sm">
+                    <span className="text-[8.5px] font-bold text-white truncate max-w-[85px] drop-shadow-sm">
                       {luckyWinInfo.giftName}
                     </span>
                   </div>
